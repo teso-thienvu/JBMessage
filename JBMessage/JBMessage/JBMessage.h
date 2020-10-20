@@ -80,6 +80,11 @@ typedef void (^JBDownloadBlock)(NSUInteger bytesRead, long long totalBytesRead, 
 /**
  *  An operation used for the request.
  */
+@property (nonatomic, strong) NSURLSessionTask *dataTask;
+
+/**
+ *  An operation used for the request.
+ */
 @property (nonatomic, strong) AFHTTPRequestOperation *operation;
 
 /**

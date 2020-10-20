@@ -7,8 +7,9 @@
 //
 
 #import "JBMessage.h"
-#import "AFHTTPRequestOperationManager.h"
+#import "AFHTTPSessionManager.h"
 #import "JBMessage+NSURLConnection.h"
+//#import "AFHTTPRequestOperation.h"
 
 JBHTTPMethod const JBHTTPMethodGET      = @"GET";
 JBHTTPMethod const JBHTTPMethodPOST     = @"POST";
@@ -36,6 +37,9 @@ static dispatch_queue_t jb_message_completion_callback_queue() {
     BOOL _isExecuting;
 
     id _willResignObserver;
+    
+    int64_t _lastDownloadProcess;
+    int64_t _lastUploadProcess;
 }
 
 #pragma mark - Shared Queue
@@ -199,8 +203,8 @@ static NSString *baseUrlString = nil;
                                                                         usingBlock:^(NSNotification *note) {
                                                                             
                                                                             __strong typeof(self) strongThis = this;
-                                                                            if (strongThis.operation.isExecuting) {
-                                                                                [strongThis.operation cancel];
+                                                                            if (strongThis.dataTask == NSURLSessionTaskStateRunning) {
+                                                                                [strongThis.dataTask cancel];
                                                                             }
                                                                         }];
 }
@@ -218,7 +222,7 @@ static NSString *baseUrlString = nil;
 - (void)cancel {
     
     _isCancelled = YES;
-    [self.operation cancel];
+    [self.dataTask cancel];
     self.operation = nil;
 }
 
@@ -255,51 +259,53 @@ static NSString *baseUrlString = nil;
 - (void)executeRequest {
     
     NSURLRequest *request = [self urlRequest];
-    AFHTTPRequestOperationManager *manager = [self requestOperationManager];
+    AFURLSessionManager *manager = [self requestOperationManager];
     
     if (self.allowsInvalidCertificates) {
         manager.securityPolicy.allowInvalidCertificates = YES;
     }
     
     __weak id this = self;
-    AFHTTPRequestOperation *operation = [manager HTTPRequestOperationWithRequest:request
-                                                                         success:^(AFHTTPRequestOperation *operation, id responseObject) {
-                                                                             
-                                                                             __strong JBMessage *strongThis = this;
-                                                                             [strongThis receivedResponse:responseObject error:nil];
-                                                                             strongThis.operation = nil;
-                                                                             
-                                                                         } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-#ifdef DEBUG
-                                                                             NSString *response = [[NSString alloc] initWithData:operation.responseData encoding:NSUTF8StringEncoding];
-                                                                             if (response && response.length) { NSLog(@"Response error: %@", response); }
-#endif
-                                                                             __strong JBMessage *strongThis = this;
-                                                                             [strongThis receivedResponse:operation.responseData error:error];
-                                                                             strongThis.operation = nil;
-                                                                         }];
-
-    [operation setUploadProgressBlock:self.uploadBlock];
-    [operation setDownloadProgressBlock:self.downloadBlock];
-    self.operation = operation;
-    
-    if (self.outputFileStreamPath) {
-        [operation setOutputStream:[NSOutputStream outputStreamToFileAtPath:self.outputFileStreamPath append:NO]];
-    }
-    
-    if (!_shouldParseResponseOnMainQueue) {
-        [operation setCompletionQueue:jb_message_completion_callback_queue()];
-    }
-    
-    if (self.shouldContinueAsBackgroundTask) {
+    //NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    self.dataTask = [manager dataTaskWithRequest:request uploadProgress:^(NSProgress * _Nonnull uploadProgress) {
+        __strong JBMessage *strongThis = this;
         
-        [operation setShouldExecuteAsBackgroundTaskWithExpirationHandler:^{
-            __strong typeof(self) strongThis = this;
-            [strongThis.operation resume];
-        }];
-    }
+        if (_lastUploadProcess) {
+            _lastUploadProcess = uploadProgress.completedUnitCount - _lastUploadProcess;
+        } else {
+            _lastUploadProcess = uploadProgress.completedUnitCount;
+        }
+        
+        if (strongThis.uploadBlock) {
+            strongThis.uploadBlock(_lastUploadProcess, uploadProgress.completedUnitCount, uploadProgress.totalUnitCount);
+        }
+        
+        
+    } downloadProgress:^(NSProgress * _Nonnull downloadProgress) {
+        __strong JBMessage *strongThis = this;
+        if (_lastDownloadProcess) {
+            _lastDownloadProcess = downloadProgress.completedUnitCount - _lastDownloadProcess;
+        } else {
+            _lastDownloadProcess = downloadProgress.completedUnitCount;
+        }
+        
+        if (strongThis.downloadBlock) {
+            strongThis.downloadBlock(_lastDownloadProcess, downloadProgress.completedUnitCount, downloadProgress.totalUnitCount);
+        }
+        
+    } completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
+        __strong JBMessage *strongThis = this;
+        if (responseObject) {
+            [strongThis receivedResponse:responseObject error:nil];
+        } else if (error) {
+            [strongThis receivedResponse:response error:error];
+        }
+        
+        strongThis.dataTask = nil;
+    }];
     
-    [manager.operationQueue addOperation:operation];
+    [self.dataTask resume];
+    
 }
 
 #pragma mark - Handling Response

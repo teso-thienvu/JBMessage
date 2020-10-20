@@ -6,10 +6,10 @@ Pod::Spec.new do |s|
   	s.license      		= { :type => "MIT", :file => "LICENSE" }
   	s.author            = { "Josip Bernat" => "josip.bernat@gmail.com" }
   	s.social_media_url	= "http://twitter.com/josipbernat"
-  	s.platform     		= :ios, "6.0"
+  	s.platform     		= :ios, "9.0"
   	s.source       		= { :git => "https://github.com/josipbernat/JBMessage.git", :tag => "v1.1" }
   	s.source_files  	= 'JBMessage/JBMessage/**/*.{h,m}'
    	s.requires_arc 		= true
-	s.dependency 		"AFNetworking", "~> 2.5"
+	s.dependency 		"AFNetworking", "~> 4.0"
 end
 

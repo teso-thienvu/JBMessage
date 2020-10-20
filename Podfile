@@ -1,2 +1,6 @@
-platform :ios, '6.0'
-pod 'AFNetworking', '~> 2.5'
+
+platform :ios, '9.0'
+
+target 'JBMessage' do
+  pod 'AFNetworking', '~> 4.0'
+end

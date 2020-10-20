@@ -7,33 +7,17 @@
 //
 
 #import "JBMessage+NSURLConnection.h"
-#import "AFHTTPRequestOperationManager.h"
+#import "AFHTTPSessionManager.h"
 
 @implementation JBMessage (NSURLConnection)
 
 #pragma mark - AFNetworking
 
-- (AFHTTPRequestOperationManager *)requestOperationManager {
-    
-    AFHTTPRequestOperationManager *manager = [AFHTTPRequestOperationManager manager];
+- (AFURLSessionManager *)requestOperationManager {
+    NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    AFURLSessionManager *manager = [[AFURLSessionManager alloc] initWithSessionConfiguration:configuration];
     
     manager.responseSerializer = [self httpResponseSerializer];
-    manager.requestSerializer = [self httpRequestSerializer];
-    
-    if (self.authorizationToken) {
-        [manager.requestSerializer setValue:self.authorizationToken forHTTPHeaderField:@"Token"];
-    }
-    
-    [self.headerValues enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
-        [manager.requestSerializer setValue:obj forHTTPHeaderField:key];
-    }];
-    
-    if (self.username && self.username.length &&
-        self.password && self.password.length) {
-        
-        [manager.requestSerializer setAuthorizationHeaderFieldWithUsername:self.username
-                                                                  password:self.password];
-    }
     
     return manager;
 }
@@ -104,16 +88,33 @@
 
 - (NSMutableURLRequest *)urlRequest {
     
-    AFHTTPRequestOperationManager *manager = [self requestOperationManager];
     NSMutableURLRequest *request = nil;
+    AFHTTPRequestSerializer *requestSerializer = [AFHTTPRequestSerializer serializer];
+    
+    if (self.authorizationToken) {
+        [requestSerializer setValue:self.authorizationToken forHTTPHeaderField:@"Token"];
+    }
+
+    [self.headerValues enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
+        [requestSerializer setValue:obj forHTTPHeaderField:key];
+    }];
+
+    if (self.username && self.username.length &&
+        self.password && self.password.length) {
+        [requestSerializer setAuthorizationHeaderFieldWithUsername:self.username
+                                                          password:self.password];
+    }
+    
+    
+    
     
     if (!self.inputFileURL || self.httpMethod == JBHTTPMethodGET) {
         
         NSError *error = nil;
-        request = [manager.requestSerializer requestWithMethod:self.httpMethod
-                                                     URLString:[self actionUrlString]
-                                                    parameters:self.parameters
-                                                         error:&error];
+        request = [requestSerializer requestWithMethod:self.httpMethod
+                                                                URLString:[self actionUrlString]
+                                                               parameters:self.parameters
+                                                                    error:&error];
         
 #ifdef DEBUG
         if (error) { NSLog(@"Error while creating request: %@", error); }
@@ -124,16 +125,17 @@
         
         __weak id this = self;
         NSError *multpartError = nil;
-        request = [manager.requestSerializer multipartFormRequestWithMethod:self.httpMethod
-                                                                  URLString:[self actionUrlString]
-                                                                 parameters:self.parameters
-                                                  constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
-                                                      
-                                                      __strong JBMessage *strongThis = this;
-                                                      [formData appendPartWithFileURL:strongThis.inputFileURL
-                                                                                 name:strongThis.filename
-                                                                                error:nil];
-                                                  } error:&multpartError];
+        
+        request = [requestSerializer multipartFormRequestWithMethod:self.httpMethod
+                                                                             URLString:[self actionUrlString]
+                                                                            parameters:self.parameters
+                                                             constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull formData) {
+            __strong JBMessage *strongThis = this;
+            [formData appendPartWithFileURL:strongThis.inputFileURL
+                                       name:strongThis.filename
+                                      error:nil];
+        } error:&multpartError];
+        
         
 #ifdef DEBUG
         if (multpartError) { NSLog(@"Error while creating multpart form request: %@", multpartError); }

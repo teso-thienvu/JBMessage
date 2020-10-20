@@ -7,6 +7,7 @@
 //
 
 #import "JBMessage.h"
+#import "AFHTTPSessionManager.h"
 
 @class AFHTTPRequestOperationManager;
 @class AFHTTPResponseSerializer;
@@ -17,7 +18,7 @@
 
 @interface JBMessage (NSURLConnection)
 
-- (AFHTTPRequestOperationManager *)requestOperationManager;
+- (AFURLSessionManager *)requestOperationManager;
 - (AFHTTPResponseSerializer <AFURLResponseSerialization> *)httpResponseSerializer;
 - (AFHTTPRequestSerializer <AFURLRequestSerialization> *)httpRequestSerializer;
 
